@@ -232,3 +232,7 @@ catch
 - oktaUpdateUserProfilebyID
 - oktaVerifyMFAnswerbyUser
 - oktaVerifyOTPbyUser
+
+#### Added Commands
+- oktaGetUserbyProfileProperty
+- oktaNewUserSilentActivate
