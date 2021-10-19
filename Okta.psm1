@@ -879,6 +879,65 @@ function oktaNewUser2()
     return $request
 }
 
+function oktaNewUserSilentActivate()
+{
+    param
+    (
+        [parameter(Mandatory=$false)][ValidateLength(1,100)][String]$oOrg=$oktaDefOrg,
+        [string]$login,
+        [string]$password,
+        [string]$email,
+        [string]$firstName,
+        [string]$lastName,
+        [string]$r_question="What Was your password?",
+        [string]$r_answer=(oktaNewPassword),
+        [array]$groupIds,
+        [object]$additional=@{}
+    )
+    $psobj = @{
+                profile = @{
+                    firstName = $firstName    
+                    lastName = $lastName
+                    email = $email
+                    login = $login
+                }
+                credentials = @{
+                    password = @{ value = $password }
+                    recovery_question = @{ question = $r_question;answer = $r_answer.ToLower().Replace(" ","")}
+                }
+              }
+    foreach ($attrib in $additional.keys)
+    {
+        $psobj.profile.add($attrib, $additional.$attrib)
+    }
+    if ($groupIds)
+    {
+        $psobj.add("groupIds", $groupIds)
+    }
+    [string]$method = "Post"
+    [string]$resource = "/api/v1/users?activate=False"
+    try
+    {
+        $request = _oktaNewCall -oOrg $oOrg -method $method -resource $resource -body $psobj
+    }
+    catch
+    {
+        if ($oktaVerbose -eq $true)
+        {
+            Write-Host -ForegroundColor red -BackgroundColor white $_.TargetObject
+        }
+        throw $_
+    }
+    foreach ($user in $request)
+    {
+        oktaActivateUserbyId -oOrg $oOrg -uid $user.id 
+        $user = OktaUserfromJson -user $user
+        return $user
+    }
+
+    return $request
+}
+
 function oktaChangeProfilebyID()
 {
     param
@@ -1332,6 +1391,47 @@ function oktaGetUserbyID()
     [string]$method = "Get"
     [string]$resource = "/api/v1/users/" + $uid
     
+    try
+    {
+        $request = _oktaNewCall -method $method -resource $resource -oOrg $oOrg
+    }
+    catch
+    {
+        if ($oktaVerbose -eq $true)
+        {
+            Write-Host -ForegroundColor red -BackgroundColor white $_.TargetObject
+        }
+        throw $_
+    }
+    foreach ($user in $request)
+    {
+        $user = OktaUserfromJson -user $user
+    }
+    return $request
+}
+
+function oktaGetUserbyProfileProperty()
+{
+    param
+    (
+        [parameter(Mandatory=$false)][ValidateLength(1,100)][String]$oOrg=$oktaDefOrg,
+        [parameter(Mandatory=$true)][ValidateLength(1,100)][String]$Property,
+        [parameter(Mandatory=$true)][ValidateLength(1,100)][String]$Value,
+        [parameter(Mandatory=$false)][ValidateLength(1,4)][String]$Limit = 1
+    )
+    #UrlEncode
+    #$uid = [System.Web.HttpUtility]::UrlPathEncode($userName)
+    #$uid = $userName
+    
+    add-type -AssemblyName System.Web
+
+    [string]$method = "Get"
+    [string]$Query = "profile.$($Property) eq " + '"' + $Value + '"' +""
+    $Query= [System.Web.HttpUtility]::UrlEncode($Query)
+    
+    [string]$resource = "/api/v1/users?limit=$Limit&" + "search=" + $Query
+    
+   
     try
     {
         $request = _oktaNewCall -method $method -resource $resource -oOrg $oOrg
